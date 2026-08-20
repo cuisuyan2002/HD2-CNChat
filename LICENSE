@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-﻿                    GNU GENERAL PUBLIC LICENSE
-=======
                     GNU GENERAL PUBLIC LICENSE
->>>>>>> 8cb788c5742172dcebc205df36c888128eda8390
                        Version 3, 29 June 2007
 
  Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
@@ -635,8 +631,8 @@ to attach them to the start of each source file to most effectively
 state the exclusion of warranty; and each file should have at least
 the "copyright" line and a pointer to where the full notice is found.
 
-    HD2-CNChat —— 绝地潜兵2中文输入助手
-    Copyright (C) 2025-2026  崔素妍
+    HD2-CNChat - 一个支持在《绝地潜兵2》中输入中文的软件.    
+    Copyright (C) 2026  崔素妍
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -656,7 +652,7 @@ Also add information on how to contact you by electronic and paper mail.
   If the program does terminal interaction, make it output a short
 notice like this when it starts in an interactive mode:
 
-    HD2-CNChat  Copyright (C) 2025-2026  崔素妍
+    HD2-CNChat  Copyright (C) 2026  崔素妍
     This program comes with ABSOLUTELY NO WARRANTY; for details type `show w'.
     This is free software, and you are welcome to redistribute it
     under certain conditions; type `show c' for details.
@@ -688,10 +684,9 @@ HD2-CNChat —— 绝地潜兵2中文输入助手
   原始版权：Copyright  (C) 2024-2025 GameXueRen
   原始项目：https://github.com/GameXueRen/GRW-CNChat （GPL v3）
   原作者主页：https://github.com/GameXueRen
-本修改版的 Copyright (C) 2025-2026 崔素妍及贡献者。
+本修改版的 Copyright (C) 2026 崔素妍
 
 共版权（Copyleft）：本程序是自由软件，你可以自由地复制、分发和修改它，
 但任何修改版或衍生作品必须同样以 GPL 第 3 版（或更新版本）授权，
 并且必须公开源代码——任何人不能将其闭源化或用于专有软件。
 ================================================================================
-
