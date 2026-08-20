@@ -31,7 +31,7 @@
 ;   原作者：GameXueRen
 ;   原始版权：Copyright © 2024-2025 GameXueRen
 ;   原始项目：https://github.com/GameXueRen/GRW-CNChat （GPL v3）
-; 本修改版的 Copyright (C) 2025-2026 崔素妍及贡献者
+; 本修改版的 Copyright (C) 2026 崔素妍
 ;
 ; 本程序是自由软件：你可以依据自由软件基金会发布的 GNU 通用公共许可证
 ; 第 3 版（或任选更新的版本）的条款重新分发和/或修改它。
@@ -72,7 +72,7 @@
 ;@Ahk2Exe-SetName HD2-CNChat
 ;@Ahk2Exe-SetProductName HD2中文输入助手
 ;@Ahk2Exe-SetDescription 绝地潜兵2中文输入助手
-;@Ahk2Exe-SetCopyright Copyright (c) 2024-2025 GameXueRen; 2025-2026 HD2-CNChat 崔素妍
+;@Ahk2Exe-SetCopyright Copyright (c) 2024-2025 GameXueRen; 2026 HD2-CNChat 崔素妍
 ;@Ahk2Exe-SetVersion 1.10.7.0
 ;@Ahk2Exe-SetMainIcon HD2-CNChat.ico
 ;@Ahk2Exe-ExeName HD2-CNChat.exe
