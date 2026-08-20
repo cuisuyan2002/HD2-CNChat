@@ -32,7 +32,7 @@
 
 ### 运行前提
 
-- 安装 [AutoHotkey v2](https://www.autohotkey.com/)（≥ 2.0），双击 `HD2-CNChat.ahk` 即可运行；
+- 安装 [AutoHotkey v2](https://www.autohotkey.com/) ，双击 `HD2-CNChat.ahk` 即可运行；
 - 系统需安装任意中文输入法
 - 游戏中需使用**无边框窗口**或**窗口化**模式（全屏独占模式下无法显示输入条）。
 
