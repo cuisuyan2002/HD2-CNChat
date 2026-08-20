@@ -10,13 +10,12 @@
 ; 特色：
 ;   1. 极简悬浮输入条（参考 GRW-CNChat）：仅一个输入框 + 关闭按钮，
 ;      系统输入法 IME 直接可用，Enter 发送、Esc 取消；固定在游戏窗口右侧居中
-;   2. 发送历史：↑/↓ 浏览历史，Ctrl+Y 重发上一条
-;   3. 输入条自动跟随游戏窗口移动，位置按分辨率记忆
-;   4. 5 种发送方式可切换，默认 Unicode 直发（SendEvent {U+nnnn}，参考 GRW-CNChat 方案）
-;   5. “修复乱码”：发送时自动把游戏线程输入法切换为中文，发完恢复
-;   6. IME 合成状态精确检测（ImmGetCompositionString），避免合成中误发送
-;   7. 游戏窗口匹配：进程名与窗口标题任一命中（标题含 HELLDIVERS™ 2 等均可匹配）
-;   8. Enter/小键盘Enter 均可打开输入条，回调内实时检测游戏状态并给出原因提示
+;   2. 输入条自动跟随游戏窗口移动，位置按分辨率记忆
+;   3. 5 种发送方式可切换，默认 Unicode 直发（SendEvent {U+nnnn}，参考 GRW-CNChat 方案）
+;   4. “修复乱码”：发送时自动把游戏线程输入法切换为中文，发完恢复
+;   5. IME 合成状态精确检测（ImmGetCompositionString），避免合成中误发送
+;   6. 游戏窗口匹配：进程名与窗口标题任一命中（标题含 HELLDIVERS™ 2 等均可匹配）
+;   7. Enter/小键盘Enter 均可打开输入条，回调内实时检测游戏状态并给出原因提示
 ;
 ; 免责声明：
 ;   本工具仅模拟键盘输入，不涉及游戏文件及内存数据篡改。
@@ -58,6 +57,7 @@
 ;   v1.10.2（2026-8-20）：新增 SendGameKey（keybd_event+按下保持40ms；修复聊天框概率性打不开）
 ;   v1.10.3（2026-8-20）：所有 Enter 注入前先暂停常驻热键（修复提交回车被吞、桌面 Enter 被吞）
 ;   v1.10.4（2026-8-20）：屏蔽 Alt+左键拖动；输入条固定在游戏窗口右侧居中（原“右下角偏上+按分辨率记忆偏移”废弃）
+;   v1.10.5（2026-8-20）：屏蔽输入条内 ↑/↓ 历史切换与 Ctrl+Y 重发快捷键（用户要求；历史记录窗口保留）
 ; ============================================================================
 
 #Requires AutoHotkey v2.0
@@ -68,7 +68,7 @@
 ;@Ahk2Exe-SetProductName HD2中文输入助手
 ;@Ahk2Exe-SetDescription 绝地潜兵2中文输入助手
 ;@Ahk2Exe-SetCopyright Copyright (c) 2024-2025 GameXueRen; 2025-2026 HD2-CNChat 崔素妍
-;@Ahk2Exe-SetVersion 1.10.4.0
+;@Ahk2Exe-SetVersion 1.10.5.0
 ;@Ahk2Exe-SetMainIcon HD2-CNChat.ico
 ;@Ahk2Exe-ExeName HD2-CNChat.exe
 
@@ -102,7 +102,7 @@ if A_Args.Length && A_Args[1] = "selftest"
 
 ; ===================== 基本信息 =====================
 AppName := "HD2中文输入助手"
-AppVer  := "v1.10.4"
+AppVer  := "v1.10.5"
 
 ; ===================== 配置文件 =====================
 ; 优先使用脚本目录（便携），目录不可写时退回用户数据目录
@@ -127,7 +127,6 @@ barVisible    := false      ; 输入条是否显示
 barEdit       := 0          ; 输入条编辑框
 barW          := 0          ; 输入条宽
 barH          := 0          ; 输入条高
-histIndex     := 0          ; 历史浏览位置
 lastGX := 0, lastGY := 0, lastGW := 0, lastGH := 0   ; 游戏窗口位置缓存
 chatKeyRegistered := ""     ; 已注册的“开始输入键”
 lastTipText   := ""         ; 状态提示内容缓存
@@ -533,7 +532,6 @@ ShowBar() {
     if !barGui
         CreateBar()
     if !barVisible {
-        global histIndex := 0
         MoveBarToGame()
         barGui.Show()
         global barVisible := true
@@ -653,7 +651,6 @@ BarEsc() {
         return
     DebugLog("BarEsc 退出")
     barEdit.Text := ""
-    global histIndex := 0
     HideBar()
     ; 激活游戏后发送 Esc 关闭游戏内聊天框（实时检测，不依赖轮询状态）
     if GameActive() {
@@ -667,18 +664,6 @@ BarEsc() {
         }
     }
 }
-; ↑/↓：浏览发送历史
-BarHistory(dir) {
-    if !barVisible || IsComposing()
-        return
-    hist := GetHistory()
-    if hist.Length = 0
-        return
-    global histIndex := Min(Max(histIndex + dir, 1), hist.Length)
-    barEdit.Text := hist[histIndex]
-    barEdit.Focus()
-    PostMessage(0xB1, -1, -1, barEdit, barGui)
-}
 ; F9：循环切换发送方式（游戏内调试用）
 CycleSendMethod() {
     if !barVisible
@@ -689,16 +674,6 @@ CycleSendMethod() {
         methodDDL.Value := cfgSendMethod
     names := ["Unicode直发", "GBK Alt码", "剪贴板粘贴", "PostMessage", "ControlSendText"]
     Tip3s("发送方式：" names[cfgSendMethod])
-}
-; Ctrl+Y：重发上一条
-ResendLast() {
-    if !barVisible
-        return
-    hist := GetHistory()
-    if hist.Length = 0
-        return
-    HideBar()
-    SendTextToGame(hist[1], true)
 }
 ; 输入条失去焦点后的处理（点击游戏等场景自动隐藏；不依赖监听状态）
 CheckBarFocus() {
@@ -716,7 +691,7 @@ CheckBarFocus() {
 ; 原则：
 ;   - Enter/NumpadEnter：脚本启动时全局注册（常驻），回调内自行判断——
 ;     输入条可见→发送；游戏前台→打开输入条；其他场景→放行（无副作用）
-;   - 输入条按键（Esc/历史/重发/方式切换）：输入条显示时注册，隐藏时注销
+;   - 输入条按键（Esc/F9）：输入条显示时注册，隐藏时注销
 ; 不依赖任何焦点/激活状态的条件求值，任何环境下都稳定生效。
 ; ============================================================================
 barKeysRegistered  := false     ; 输入条热键（Esc/历史/重发/方式切换）是否已注册
@@ -923,15 +898,13 @@ UnregisterAllSysHotkeys() {
     }
 }
 ; 更新输入条热键：输入条显示时注册，隐藏时注销
+; v1.10.5：↑/↓ 历史切换与 Ctrl+Y 重发已按用户要求屏蔽，仅保留 Esc/F9
 ; 注意：本机 AHK v2.0.26 环境下 Hotkey 只接受 lambda/BoundFunc 回调
 ; （直接传函数对象会报 Invalid callback function），统一用 lambda 包装
 UpdateBarHotkeys() {
     if barVisible && !barKeysRegistered {
         try {
             Hotkey("~Esc Up", (*) => BarEsc(), "On")
-            Hotkey("~Up", BarHistory.Bind(-1), "On")
-            Hotkey("~Down", BarHistory.Bind(1), "On")
-            Hotkey("^y", (*) => ResendLast(), "On")
             Hotkey("F9", (*) => CycleSendMethod(), "On")
             global barKeysRegistered := true
             DebugLog("热键注册：输入条按键")
@@ -941,9 +914,6 @@ UpdateBarHotkeys() {
     } else if !barVisible && barKeysRegistered {
         try {
             Hotkey("~Esc Up", "Off")
-            Hotkey("~Up", "Off")
-            Hotkey("~Down", "Off")
-            Hotkey("^y", "Off")
             Hotkey("F9", "Off")
             global barKeysRegistered := false
             DebugLog("热键注销：输入条按键")
@@ -956,9 +926,6 @@ UpdateBarHotkeys() {
 UnregisterAllHotkeys() {
     if barKeysRegistered {
         Hotkey("~Esc Up", "Off")
-        Hotkey("~Up", "Off")
-        Hotkey("~Down", "Off")
-        Hotkey("^y", "Off")
         Hotkey("F9", "Off")
         global barKeysRegistered := false
     }
@@ -1470,7 +1437,6 @@ ShowAbout(*) {
 开始输入 : Enter / 小键盘Enter（与游戏聊天键一致）
 发送      : Enter
 取消      : Esc
-浏览历史  : ↑ / ↓，重发上条按钮
 切换方式  : F9
 
 【常见问题】
@@ -1591,27 +1557,6 @@ Selftest() {
             hkOut .= "esc-ok "
         } catch as e {
             hkOut .= "esc-FAIL:" e.Message " "
-        }
-        try {
-            Hotkey("~Up", BarHistory.Bind(-1), "On")
-            Hotkey("~Up", "Off")
-            hkOut .= "up-ok "
-        } catch as e {
-            hkOut .= "up-FAIL:" e.Message " "
-        }
-        try {
-            Hotkey("~Down", BarHistory.Bind(1), "On")
-            Hotkey("~Down", "Off")
-            hkOut .= "down-ok "
-        } catch as e {
-            hkOut .= "down-FAIL:" e.Message " "
-        }
-        try {
-            Hotkey("^y", ResendLast, "On")
-            Hotkey("^y", "Off")
-            hkOut .= "y-ok "
-        } catch as e {
-            hkOut .= "y-FAIL:" e.Message " "
         }
         try {
             Hotkey("F9", CycleSendMethod, "On")
