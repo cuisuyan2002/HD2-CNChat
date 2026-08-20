@@ -10,12 +10,13 @@
 ; 特色：
 ;   1. 极简悬浮输入条（参考 GRW-CNChat）：仅一个输入框 + 关闭按钮，
 ;      系统输入法 IME 直接可用，Enter 发送、Esc 取消；固定在游戏窗口右侧居中
-;   2. 输入条自动跟随游戏窗口移动，位置按分辨率记忆
-;   3. 5 种发送方式可切换，默认 Unicode 直发（SendEvent {U+nnnn}，参考 GRW-CNChat 方案）
-;   4. “修复乱码”：发送时自动把游戏线程输入法切换为中文，发完恢复
-;   5. IME 合成状态精确检测（ImmGetCompositionString），避免合成中误发送
-;   6. 游戏窗口匹配：进程名与窗口标题任一命中（标题含 HELLDIVERS™ 2 等均可匹配）
-;   7. Enter/小键盘Enter 均可打开输入条，回调内实时检测游戏状态并给出原因提示
+;   2. 发送历史：主面板「历史记录」查看/重发（v1.10.5 起屏蔽输入条内 ↑/↓ 与 Ctrl+Y 快捷键）
+;   3. 输入条自动跟随游戏窗口移动，位置按分辨率记忆
+;   4. 5 种发送方式可切换，默认 Unicode 直发（SendEvent {U+nnnn}，参考 GRW-CNChat 方案）
+;   5. “修复乱码”：发送时自动把游戏线程输入法切换为中文，发完恢复
+;   6. IME 合成状态精确检测（ImmGetCompositionString），避免合成中误发送
+;   7. 游戏窗口匹配：进程名与窗口标题任一命中（标题含 HELLDIVERS™ 2 等均可匹配）
+;   8. Enter/小键盘Enter 均可打开输入条，回调内实时检测游戏状态并给出原因提示
 ;
 ; 免责声明：
 ;   本工具仅模拟键盘输入，不涉及游戏文件及内存数据篡改。
@@ -58,6 +59,10 @@
 ;   v1.10.3（2026-8-20）：所有 Enter 注入前先暂停常驻热键（修复提交回车被吞、桌面 Enter 被吞）
 ;   v1.10.4（2026-8-20）：屏蔽 Alt+左键拖动；输入条固定在游戏窗口右侧居中（原“右下角偏上+按分辨率记忆偏移”废弃）
 ;   v1.10.5（2026-8-20）：屏蔽输入条内 ↑/↓ 历史切换与 Ctrl+Y 重发快捷键（用户要求；历史记录窗口保留）
+;   v1.10.6（2026-8-20）：修复①中文输入法下按 Enter 提交拼音成英文失效（输入条可见时暂停 Enter 系统热键，
+;       把 Enter 交还 IME，发送由钩子通道负责）；②面板监听状态显示过期（改为实时查询，不依赖轮询缓存）
+;   v1.10.7（2026-8-20）：输入法提交英文后不再自动发送——英文留在输入条里继续输入，
+;       再次按 Enter 才发送（修复“打完 ChoiSoyeon 想继续打字却被直接发送”）
 ; ============================================================================
 
 #Requires AutoHotkey v2.0
@@ -68,7 +73,7 @@
 ;@Ahk2Exe-SetProductName HD2中文输入助手
 ;@Ahk2Exe-SetDescription 绝地潜兵2中文输入助手
 ;@Ahk2Exe-SetCopyright Copyright (c) 2024-2025 GameXueRen; 2025-2026 HD2-CNChat 崔素妍
-;@Ahk2Exe-SetVersion 1.10.5.0
+;@Ahk2Exe-SetVersion 1.10.7.0
 ;@Ahk2Exe-SetMainIcon HD2-CNChat.ico
 ;@Ahk2Exe-ExeName HD2-CNChat.exe
 
@@ -102,7 +107,7 @@ if A_Args.Length && A_Args[1] = "selftest"
 
 ; ===================== 基本信息 =====================
 AppName := "HD2中文输入助手"
-AppVer  := "v1.10.5"
+AppVer  := "v1.10.7"
 
 ; ===================== 配置文件 =====================
 ; 优先使用脚本目录（便携），目录不可写时退回用户数据目录
@@ -592,10 +597,14 @@ Tip3s(text) {
     ToolTip(text, , , 3)
     SetTimer(() => ToolTip(,,, 3), -3000)
 }
-; Enter：发送（采用 GRW-CNChat v3 的交互模式）
-; v3 模式：按键释放后比对输入框文本——若文本变化说明输入法刚提交了拼音，
-; 则本次 Enter 不发送（避免把拼音发出去），改为自动继续发送提交后的文本；
-; 文本未变化则立即发送。完全不依赖 IME 合成状态检测，任何输入法都稳定。
+; Enter：发送（v1.10.7 交互模式）
+; 按键释放后比对输入框文本：
+;   - 文本变化（输入法刚提交了英文，如中文输入法下按 Enter 提交拼音）→ 本次 Enter 只提交，
+;     不发送——英文留在输入条里，用户继续输入，之后再次按 Enter 才发送
+;     （例：要发“你好我是ChoiSoyeon很高兴认识你”，打完 ChoiSoyeon 按 Enter 只提交英文，
+;      继续打“很高兴认识你”，再按 Enter 才整体发送）
+;   - 文本未变化 → 立即发送
+; 完全不依赖 IME 合成状态检测，任何输入法都稳定。
 ; busy 防重：AHK 钩子与系统热键双通道可能同时触发，防止重复发送
 BarEnter() {
     static busy := false
@@ -610,20 +619,13 @@ BarEnter() {
         KeyWait "Enter"                     ; 等按键释放，让输入法完成处理
         Sleep 50
         if barEdit.Text != oldText {
-            DebugLog("BarEnter 文本变化(拼音提交)，自动继续发送")
-            ; 拼音刚提交：延迟后自动发送提交后的文本（用户只需按一次 Enter）
-            SetTimer(BarEnterDelayed, -150)
+            DebugLog("BarEnter 文本变化(输入法提交英文)，本次不发送，继续输入")
             return
         }
         DoBarEnter()
     } finally {
         busy := false
     }
-}
-BarEnterDelayed() {
-    if !barVisible
-        return
-    DoBarEnter()
 }
 ; 实际执行发送
 DoBarEnter() {
@@ -842,11 +844,8 @@ SysOpenBar() {
         global sysEnterSuppress := false
     }
     ShowBar()
-    ; 恢复 Enter 系统热键（输入条可见时也需要它来接收发送键）
-    if !sysHkEnterReg {
-        RegisterSysEnter()
-        DebugLog("SysOpenBar 恢复 Enter 热键 ok=" sysHkEnterReg)
-    }
+    ; 注意：不再在此恢复 Enter 热键——ShowBar 内的 UpdateSysHotkeys 会按 barVisible 管理：
+    ; 输入条可见期间 Enter 热键保持暂停（交还 IME），隐藏时自动恢复注册
 }
 ; 诊断：前台窗口信息（用于定位“游戏在前台但检测不到”的问题）
 DiagForeground() {
@@ -858,8 +857,18 @@ DiagForeground() {
     }
     return "fg=?"
 }
-; 更新系统热键注册（由常驻状态定时器调用；Enter 常驻，不在此处理）
+; 更新系统热键注册（由常驻状态定时器调用）
 UpdateSysHotkeys() {
+    ; Enter：输入条可见时暂停注册（系统热键会吞掉 Enter，中文输入法需要它提交拼音成英文；
+    ; 此时输入条内 Enter 的发送由钩子通道 EnterKeyHandler 负责——本机钩子已验证可用）；
+    ; 输入条隐藏时恢复注册（游戏内打开输入条 + 桌面放行）
+    if barVisible && sysHkEnterReg {
+        DllCall("UnregisterHotKey", "Ptr", A_ScriptHwnd, "Int", 0x4844)
+        global sysHkEnterReg := false
+        DebugLog("系统热键注销 Enter（输入条可见，交还 IME）")
+    } else if !barVisible && !sysHkEnterReg && A_TickCount >= enterInjectUntil {
+        RegisterSysEnter()
+    }
     ; Ctrl+Enter：游戏在前台（强制打开备用通道）
     shouldCEnter := gameActiveNow && !barVisible
     if shouldCEnter && !sysHkCEnterReg {
@@ -1020,7 +1029,12 @@ MonitorGame() {
         return
     }
     try {
+        ; 监听期间同时刷新游戏状态缓存（即使 RefreshGameState 链路异常，
+        ; 面板显示与窗口跟随也不会用过期数据——v1.10.6 修复“状态显示与实际不符”）
+        global gameExistsNow := GameExists()
+        global gameActiveNow := GameActive()
         MonitorGameInner()
+        UpdatePanelStatus()
     } catch as e {
         DebugLog("MonitorGame 异常：" e.Message " @ " e.Line)
     }
@@ -1086,16 +1100,22 @@ MonitorGameInner() {
     }
 }
 ; 更新主面板状态显示
+; v1.10.6：实时查询游戏窗口，不依赖轮询缓存（修复“游戏在运行却显示未检测到 /
+; 游戏已退出仍显示已监听”的过期状态问题）
 UpdatePanelStatus() {
     if !IsSet(statusText)
         return
     if !armed {
         statusText.Text := "未启动监听（游戏内按 Enter 仍可直接输入）"
         statusText.SetFont("s10 bold cGray")
-    } else if !gameExistsNow {
+        return
+    }
+    existsNow := GameExists()
+    activeNow := GameActive()
+    if !existsNow {
         statusText.Text := "监听中 · 未检测到游戏窗口"
         statusText.SetFont("s10 bold cRed")
-    } else if !gameActiveNow {
+    } else if !activeNow {
         statusText.Text := "监听中 · 游戏在后台"
         statusText.SetFont("s10 bold cBlue")
     } else {
@@ -1582,7 +1602,8 @@ Selftest() {
         Log("hotkey-reg " hkOut)
         ; 启动目标窗口
         if !WinExist("CNTestTarget") {
-            Run '"' A_AhkPath '" "' A_ScriptDir '\target.ahk"'
+            targetPath := FileExist(A_ScriptDir "\内部测试\target.ahk") ? A_ScriptDir "\内部测试\target.ahk" : A_ScriptDir "\target.ahk"
+            Run '"' A_AhkPath '" "' targetPath '"'
             if !WinWaitActive("CNTestTarget", , 5) {
                 Log("FAIL: 目标窗口未启动")
                 Finish(1)
@@ -1647,6 +1668,11 @@ Selftest() {
         Sleep 600
         Log("esc-flow barVisible=" barVisible " text=[" barEdit.Text "]")
         ; —— EnterKeyHandler 分发：目标窗口激活时 → 应打开输入条 ——
+        ; （先暂停 Enter 系统热键，模拟“仅钩子通道”场景——即运行时输入条可见期间的状态）
+        if sysHkEnterReg {
+            DllCall("UnregisterHotKey", "Ptr", A_ScriptHwnd, "Int", 0x4844)
+            global sysHkEnterReg := false
+        }
         EnterKeyHandler()
         Sleep 300
         Log("enterHandler-open barVisible=" barVisible " (目标激活时应为 1)")
