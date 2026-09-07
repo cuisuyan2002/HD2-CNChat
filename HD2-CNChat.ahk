@@ -1,68 +1,23 @@
 ﻿; ============================================================================
 ; HD2-CNChat —— 绝地潜兵2 中文输入助手 (AutoHotkey v2)
-; ----------------------------------------------------------------------------
-; 原理：
-;   游戏内按“开始输入键”（默认 Enter，与游戏聊天键一致）时，
-;   工具在游戏窗口底部弹出一个自绘输入条（系统输入法 IME 可直接使用），
-;   输入中文后按 Enter，工具把文本以模拟按键的方式注入游戏聊天框并回车发送。
-;   全程不修改游戏文件、不读写游戏内存，仅模拟键盘输入。
 ;
-; 特色：
-;   1. 极简悬浮输入条（参考 GRW-CNChat）：仅一个输入框 + 关闭按钮，
-;      系统输入法 IME 直接可用，Enter 发送、Esc 取消；固定在游戏窗口右侧居中
-;   2. 发送历史：主面板「历史记录」查看/重发（v1.10.5 起屏蔽输入条内 ↑/↓ 与 Ctrl+Y 快捷键）
-;   3. 输入条自动跟随游戏窗口移动，位置按分辨率记忆
-;   4. 5 种发送方式可切换，默认 Unicode 直发（SendEvent {U+nnnn}，参考 GRW-CNChat 方案）
-;   5. “修复乱码”：发送时自动把游戏线程输入法切换为中文，发完恢复
-;   6. IME 合成状态精确检测（ImmGetCompositionString），避免合成中误发送
-;   7. 游戏窗口匹配：进程名与窗口标题任一命中（标题含 HELLDIVERS™ 2 等均可匹配）
-;   8. Enter/小键盘Enter 均可打开输入条，回调内实时检测游戏状态并给出原因提示
+; 游戏内按 Enter 弹出悬浮输入条，直接用系统中文输入法输入中文，
+; 回车后以模拟按键方式把文本注入游戏聊天框并发送。仅模拟键盘输入，
+; 不修改游戏文件与内存。
 ;
-; 免责声明：
-;   本工具仅模拟键盘输入，不涉及游戏文件及内存数据篡改。
-;   使用本工具在游戏中输入中文可能带来的后果，由使用者自行承担。
-; ============================================================================
-
-; ============================================================================
-; 许可协议：GNU GPL v3（共版权 Copyleft）
-;
-; 本程序是修改版/衍生作品：基于 GRW-CNChat（游戏无缝输入中文）优化改写而来，
-; 输入条 UI 部分复用自该作品。
-;   原作者：GameXueRen
-;   原始版权：Copyright © 2024-2025 GameXueRen
-;   原始项目：https://github.com/GameXueRen/GRW-CNChat （GPL v3）
-; 本修改版的 Copyright (C) 2026 崔素妍
-;
-; 本程序是自由软件：你可以依据自由软件基金会发布的 GNU 通用公共许可证
-; 第 3 版（或任选更新的版本）的条款重新分发和/或修改它。
-; 任何修改版/衍生作品必须同样以 GPL v3 授权并公开源代码。
-;
-; 本程序按“现状”分发，不附带任何明示或默示的担保；详情见随附的
-; LICENSE 文件，或访问 https://www.gnu.org/licenses/gpl-3.0.html
+; 本程序是基于 GRW-CNChat（作者 GameXueRen，© 2024-2025，
+; https://github.com/GameXueRen/GRW-CNChat）优化改写的修改版/衍生作品，
+; 以 GNU GPL v3（GPL-3.0-or-later）授权，随附 LICENSE 文件。
+; Copyright (C) 2025-2026 崔素妍及贡献者
 ;
 ; This program is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
 ; the Free Software Foundation, either version 3 of the License, or
 ; (at your option) any later version.
-; ============================================================================
-;
-; ============================================================================
-; 修改记录（相对 GRW-CNChat v3，GPL v3 第 5 条：显著标注本作品为修改版）
-; 代码内标记约定：各功能区块注释已标明「源自 GRW-CNChat v3」或「HD2-CNChat 新增/重写」。
-;   v1.0~v1.9（2026-8-19）：适配《绝地潜兵 2》；主界面简化为单游戏助手面板；
-;       新增发送历史、按分辨率记忆输入条位置；删除战术短语库/单词查询表
-;   v1.10  (2026-08-19)：Enter 系统热键启动即常驻注册 + 回调实时判定（修复游戏内 Enter 无反应）；
-;       启动热键全部改 lambda（修复本机 Invalid callback function）；诊断日志增强
-;   v1.10.1（2026-8-20）：系统热键回调成为 Enter 唯一决策者（修复钩子弹条+热键销毁的双触发）；
-;       打开输入条时补发 Enter 打开游戏聊天框
-;   v1.10.2（2026-8-20）：新增 SendGameKey（keybd_event+按下保持40ms；修复聊天框概率性打不开）
-;   v1.10.3（2026-8-20）：所有 Enter 注入前先暂停常驻热键（修复提交回车被吞、桌面 Enter 被吞）
-;   v1.10.4（2026-8-20）：屏蔽 Alt+左键拖动；输入条固定在游戏窗口右侧居中（原“右下角偏上+按分辨率记忆偏移”废弃）
-;   v1.10.5（2026-8-20）：屏蔽输入条内 ↑/↓ 历史切换与 Ctrl+Y 重发快捷键（用户要求；历史记录窗口保留）
-;   v1.10.6（2026-8-20）：修复①中文输入法下按 Enter 提交拼音成英文失效（输入条可见时暂停 Enter 系统热键，
-;       把 Enter 交还 IME，发送由钩子通道负责）；②面板监听状态显示过期（改为实时查询，不依赖轮询缓存）
-;   v1.10.7（2026-8-20）：输入法提交英文后不再自动发送——英文留在输入条里继续输入，
-;       再次按 Enter 才发送（修复“打完 ChoiSoyeon 想继续打字却被直接发送”）
+; This program is distributed in the hope that it will be useful,
+; but WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+; GNU General Public License for more details.
 ; ============================================================================
 
 #Requires AutoHotkey v2.0
@@ -72,8 +27,8 @@
 ;@Ahk2Exe-SetName HD2-CNChat
 ;@Ahk2Exe-SetProductName HD2中文输入助手
 ;@Ahk2Exe-SetDescription 绝地潜兵2中文输入助手
-;@Ahk2Exe-SetCopyright Copyright (c) 2024-2025 GameXueRen; 2026 HD2-CNChat 崔素妍
-;@Ahk2Exe-SetVersion 1.10.7.0
+;@Ahk2Exe-SetCopyright Copyright (c) 2024-2025 GameXueRen; 2025-2026 HD2-CNChat 崔素妍
+;@Ahk2Exe-SetVersion 1.10.9.0
 ;@Ahk2Exe-SetMainIcon HD2-CNChat.ico
 ;@Ahk2Exe-ExeName HD2-CNChat.exe
 
@@ -82,13 +37,11 @@ SetTitleMatchMode 2
 SetTitleMatchMode "Fast"
 CoordMode "ToolTip", "Screen"
 
-; ===================== 语法检查模式 =====================
-; 启动参数为 check 时：整个脚本被解析(语法校验)后立即退出，不显示界面
-; 启动参数为 selftest 时：执行内部自检（见文件末尾 Selftest）
-; 启动参数为 debug 时：把按键/发送等关键事件写入 hd2cnc_debug.log 便于排障
+; ===================== 启动参数 =====================
+; check：语法校验后立即退出；selftest：内部自检；debug：开启排障日志
 isSelfTest := A_Args.Length && A_Args[1] = "selftest"
 isDebug    := A_Args.Length && A_Args[1] = "debug"
-; 调试日志（仅 debug 模式写入）
+; 调试日志（仅 debug 模式或面板「排障日志」开启后写入）
 DebugLog(msg) {
     global isDebug
     if !isDebug
@@ -96,18 +49,12 @@ DebugLog(msg) {
     try
         FileAppend(Format("[{}] {}", A_TickCount, msg) "`n", A_ScriptDir "\hd2cnc_debug.log")
 }
-if isSelfTest
-    FileAppend("M1:started args=" A_Args.Length " a1=" (A_Args.Length ? A_Args[1] : "-") "`n", A_ScriptDir "\selftest_debug.txt")
 if A_Args.Length && A_Args[1] = "check"
     ExitApp 0
-if isSelfTest
-    FileAppend("M2:after-check`n", A_ScriptDir "\selftest_debug.txt")
-if A_Args.Length && A_Args[1] = "selftest"
-    FileAppend("M3:selftest-arg`n", A_ScriptDir "\selftest_debug.txt")
 
 ; ===================== 基本信息 =====================
 AppName := "HD2中文输入助手"
-AppVer  := "v1.10.7"
+AppVer  := "v1.10.9"
 
 ; ===================== 配置文件 =====================
 ; 优先使用脚本目录（便携），目录不可写时退回用户数据目录
@@ -136,7 +83,6 @@ lastGX := 0, lastGY := 0, lastGW := 0, lastGH := 0   ; 游戏窗口位置缓存
 chatKeyRegistered := ""     ; 已注册的“开始输入键”
 lastTipText   := ""         ; 状态提示内容缓存
 sysEnterSuppress := false   ; Enter 系统热键自触发抑制：注入的 Enter 被回调消费
-hookSawEnter  := 0          ; 最近一次 AHK 钩子通道收到 Enter 的时间戳（判断钩子是否工作）
 justSent      := 0          ; 最近一次成功发送的时间戳（发送后短暂忽略“打开输入条”，防注入 Enter 触发重开）
 enterInjectUntil := 0       ; 注入 Enter 后的抑制截止时间（A_TickCount）：窗口内忽略所有 Enter 自触发
                             ; （注入的 Enter 可能延迟数百毫秒才被系统热键派发，单次消费标志覆盖不到）
@@ -273,10 +219,9 @@ GameMatchDesc() {
 }
 
 ; ============================================================================
-; 底层按键注入（SendInput，失败时回退 keybd_event）
-; 源自 GRW-CNChat v3；HD2-CNChat 新增 SendGameKey/SendGameEnter（keybd_event + 按下保持）
+; 按键注入
 ; ============================================================================
-; 发送一个键盘事件；返回是否由 SendInput 成功注入
+; 注入一个键盘事件（SendInput，失败回退 keybd_event）
 SendKeyEvent(vk, scan, flags) {
     input := Buffer(28, 0)
     NumPut("UInt", 1, input, 0)       ; INPUT_KEYBOARD
@@ -293,10 +238,8 @@ SendVKey(vk) {
     SendKeyEvent(vk, 0, 0)
     SendKeyEvent(vk, 0, 2)      ; KEYEVENTF_KEYUP
 }
-; 给游戏发送一次按键（keybd_event 通道，按下-保持-释放）
-; 实测教训：SendInput 瞬时 down+up 会被按帧采样输入的游戏偶发漏掉
-; （HD2 聊天框偶发打不开——v1.10.1 实机故障），而 keybd_event + 保持 40ms
-; 跨多个游戏帧，可靠性接近物理按键；文本注入（SendEvent/keybd_event）实测一直有效
+; 给游戏发送完整按键：keybd_event 按下→保持→释放
+; （按帧采样输入的游戏会漏掉瞬时按键，保持 40ms 才可靠）
 SendGameKey(vk, scan) {
     DllCall("keybd_event", "UChar", vk, "UChar", scan, "UInt", 0, "UPtr", 0)
     Sleep 40
@@ -337,9 +280,7 @@ SendGBKText(text) {
     if !nlOn
         SendVKey(0x90)                   ; 恢复 NumLock 状态
 }
-; Unicode 方式发送整段文本
-; 参考 GRW-CNChat：逐字转 {U+nnnn} 序列，用 SendEvent 一次注入，
-; 不依赖键盘布局，绝大多数游戏可正常接收
+; Unicode 逐字发送（{U+nnnn} 序列一次注入，不依赖键盘布局）
 SendUnicodeText(text) {
     unicode := ""
     for ch in StrSplit(text)
@@ -383,21 +324,9 @@ SwitchGameIME(langId) {
     }
     return old
 }
-; 检测输入条编辑框当前是否处于 IME 合成状态
-IsComposing() {
-    if !barEdit
-        return false
-    hIMC := DllCall("Imm32.dll\ImmGetContext", "Ptr", barEdit.Hwnd, "Ptr")
-    if !hIMC
-        return false
-    ; GCS_COMPSTR = 0x8：取合成字符串长度，大于0说明正在合成
-    len := DllCall("Imm32.dll\ImmGetCompositionStringW", "Ptr", hIMC, "UInt", 0x8, "Ptr", 0, "UInt", 0, "Int")
-    DllCall("Imm32.dll\ImmReleaseContext", "Ptr", barEdit.Hwnd, "Ptr", hIMC)
-    return len > 0
-}
 
 ; ============================================================================
-; 发送引擎（源自 GRW-CNChat v3，HD2-CNChat 深度改写：热键暂停/抑制、keybd_event 保持注入）
+; 发送引擎
 ; ============================================================================
 ; 把文本发送到游戏窗口；pressEnter=true 时发送后补一个回车（提交聊天）
 ; 返回空串表示成功，否则返回错误说明
@@ -437,18 +366,16 @@ SendTextToGame(text, pressEnter := false) {
         SwitchGameIME(oldLay)                   ; 恢复原输入法
     if pressEnter {
         Sleep 40
-        ; 提交回车：必须先暂停 Enter 系统热键再注入——
-        ; 热键注册期间注入的 Enter 会被系统热键吞掉（游戏收不到，发送永远不生效），
-        ; v1.10.2 实机故障：文字已进聊天框但必须手动再按 2-3 次 Enter 才能发出
+        ; 提交回车前必须暂停 Enter 系统热键，否则注入的 Enter 会被自己吞掉
         try {
             if sysHkEnterReg {
                 DllCall("UnregisterHotKey", "Ptr", A_ScriptHwnd, "Int", 0x4844)
                 global sysHkEnterReg := false
                 DebugLog("提交回车：暂停 Enter 热键")
             }
-            global sysEnterSuppress := true      ; 钩子通道对注入的 Enter 直接放行
-            global enterInjectUntil := A_TickCount + 1200   ; 时间窗兜底（防止恢复注册后延迟派发自触发）
-            SendGameEnter()                     ; keybd_event + 保持：提交聊天（对 HD2 可靠）
+            global sysEnterSuppress := true
+            global enterInjectUntil := A_TickCount + 1200   ; 时间窗兜底（注入事件可能延迟派发）
+            SendGameEnter()
             Sleep 30
         } finally {
             global sysEnterSuppress := false
@@ -464,35 +391,47 @@ SendTextToGame(text, pressEnter := false) {
 }
 
 ; ============================================================================
-; 输入条（悬浮输入框）—— UI 源自 GRW-CNChat v3，HD2-CNChat 简化为单行极简样式
+; 悬浮输入条（白底、直角、深灰描边）
 ; ============================================================================
-; 创建输入条窗口（懒创建，首次显示时建立）
-; 极简设计（参考 GRW-CNChat）：仅一个输入框 + 关闭按钮
+; 懒创建：单行输入框 + ✕ 关闭
+; 样式实现：窗口背景设为描边灰；白色内容（输入框+✕ 无缝拼合）先铺满客户区，
+; 再把窗口四边各扩出 ring 像素——露出的灰底即均匀描边；窗口不做任何圆角，
+; 保持直角（v1.10.9 用户定案：曾试 Win11 DWM 平滑圆角，实机观感不如预期）。
+; 输入框必须显式去掉系统 3D 凹陷边框（-E0x200 移除 WS_EX_CLIENTEDGE；
+; 仅 -Border 只去掉细边框，凹陷边框仍在，会在面板四周留下黑/蓝杂色线）
 CreateBar() {
     fs := cfgFontSize
-    editH := Round(fs * A_ScreenDPI / 72) + 10
-    global barW := cfgBarWidth
-    global barGui := Gui("+ToolWindow -SysMenu +Border -Caption +AlwaysOnTop", AppName "输入条")
-    barGui.MarginX := 6
-    barGui.MarginY := 5
-    barGui.BackColor := "15171A"
+    ring := 2                        ; 描边宽度
+    editH := Round(fs * A_ScreenDPI / 72) + 14
+    closeW := 32                     ; ✕ 区域宽
+    global barGui := Gui("+ToolWindow -SysMenu -Caption +AlwaysOnTop", AppName "输入条")
+    barGui.MarginX := 0
+    barGui.MarginY := 0
+    barGui.BackColor := "3F3F3F"     ; 描边灰（扩边后窗口四周露出的底色）
     barGui.SetFont("s" fs, "Microsoft YaHei UI")
 
-    ; 输入框 + 关闭按钮（一行）
-    global barEdit := barGui.AddEdit("w" (barW - 62) " h" editH " cWhite Background15171A Limit" cfgMaxLen)
+    global barW := cfgBarWidth
+    innerW := barW - closeW
+    ; 输入框：白底黑字、无任何系统边框（与右侧 ✕ 拼成整块白面板）
+    global barEdit := barGui.AddEdit("-Border -E0x200 x" ring " y" ring " w" innerW " h" editH " c1A1A1A BackgroundFFFFFF Limit" cfgMaxLen)
+    SendMessage(0xD3, 3, (8 << 16) | 8, barEdit.Hwnd)   ; EM_SETMARGINS：文字左右留白
     try
-        SendMessage(0x1501, true, StrPtr("输入中文，按 Enter 发送，Esc 取消"), barEdit.Hwnd)   ; EM_SETCUEBANNER
-    cBtn := barGui.AddButton("x+2 w56 h" editH, "✕")
-    cBtn.SetFont("s10 bold")
-
-    global barH := 5 + editH + 5
+        SendMessage(0x1501, true, StrPtr("输入中文，按 Enter 发送，Esc 取消"), barEdit.Hwnd)
+    ; ✕：文本控件（SS_NOTIFY 收点击 + SS_CENTERIMAGE 垂直居中），紧贴输入框右侧
+    closeTxt := barGui.AddText("0x300 x" (ring + innerW) " y" ring " w" closeW " h" editH " Center c9A9A9A BackgroundFFFFFF", "✕")
+    closeTxt.SetFont("s" (fs - 2))
 
     barGui.Show("Hide")
     global barHwnd := barGui.Hwnd
+    ; AutoSize 只到内容右/下缘，再各扩出 ring 像素：
+    ; 窗口四周（左/上由 ring 偏移、右/下由扩边）露出的灰底 = 均匀 2px 描边
+    WinGetPos(, , &cw, &ch, barHwnd)
+    barGui.Move(, , cw + ring, ch + ring)
+    WinGetPos(, , &ww, &wh, barHwnd)
+    global barW := ww, barH := wh
 
-    ; 事件
     barEdit.OnEvent("LoseFocus", (*) => SetTimer(CheckBarFocus, -60))
-    cBtn.OnEvent("Click", (*) => HideBar())
+    closeTxt.OnEvent("Click", (*) => HideBar())
 }
 ; 销毁输入条（下次显示时重建，用于布局参数变更后）
 DestroyBar() {
@@ -501,10 +440,7 @@ DestroyBar() {
         barGui.Destroy()
     global barGui := 0, barHwnd := 0, barEdit := 0
 }
-; 把输入条移动到固定锚点：游戏窗口右侧居中（距右缘 30px，垂直居中）
-; 注意：不检查 barVisible——首次显示时（ShowBar）也需要定位；
-; 实时查询游戏窗口（不依赖轮询状态），无游戏窗口时兜底显示在屏幕右侧居中
-; v1.10.4：屏蔽 Alt+左键拖动，位置固定不可调（原按分辨率记忆偏移已废弃）
+; 定位：游戏窗口右侧居中（距右缘 30px）；无游戏窗口时屏幕右侧居中
 MoveBarToGame() {
     if !barGui
         return
@@ -597,15 +533,9 @@ Tip3s(text) {
     ToolTip(text, , , 3)
     SetTimer(() => ToolTip(,,, 3), -3000)
 }
-; Enter：发送（v1.10.7 交互模式）
-; 按键释放后比对输入框文本：
-;   - 文本变化（输入法刚提交了英文，如中文输入法下按 Enter 提交拼音）→ 本次 Enter 只提交，
-;     不发送——英文留在输入条里，用户继续输入，之后再次按 Enter 才发送
-;     （例：要发“你好我是ChoiSoyeon很高兴认识你”，打完 ChoiSoyeon 按 Enter 只提交英文，
-;      继续打“很高兴认识你”，再按 Enter 才整体发送）
-;   - 文本未变化 → 立即发送
-; 完全不依赖 IME 合成状态检测，任何输入法都稳定。
-; busy 防重：AHK 钩子与系统热键双通道可能同时触发，防止重复发送
+; 输入条内按 Enter：
+; 输入法合成中按 Enter 会先提交英文（文本变化），此时不发送、可继续输入；
+; 文本未变化（无合成）才发送。busy 防双通道同时触发
 BarEnter() {
     static busy := false
     if busy
@@ -646,8 +576,7 @@ DoBarEnter() {
         barEdit.Text := ""
     }
 }
-; Esc：取消并退出（v3 模式：~Esc Up 触发，无条件退出，不比对文本）
-; 合成中按 Esc 也会直接退出输入，并激活游戏发送 Esc 关闭游戏聊天框
+; Esc：取消并退出，必要时向游戏补发 Esc 关闭聊天框
 BarEsc() {
     if !barVisible
         return
@@ -688,22 +617,14 @@ CheckBarFocus() {
 }
 
 ; ============================================================================
-; 热键管理（采用 GRW-CNChat v3 的动态注册方式，不使用 #HotIf 条件热键）
-; 双通道机制（AHK 钩子 + Win32 系统热键）为 HD2-CNChat 重写/新增
-; 原则：
-;   - Enter/NumpadEnter：脚本启动时全局注册（常驻），回调内自行判断——
-;     输入条可见→发送；游戏前台→打开输入条；其他场景→放行（无副作用）
-;   - 输入条按键（Esc/F9）：输入条显示时注册，隐藏时注销
-; 不依赖任何焦点/激活状态的条件求值，任何环境下都稳定生效。
+; 热键管理（动态注册，不使用 #HotIf 条件热键）
+;   Enter：启动即全局注册，回调内判断——输入条可见→发送；游戏前台→打开；其他→放行
+;   输入条按键（Esc/F9）：输入条显示时注册、隐藏时注销
 ; ============================================================================
-barKeysRegistered  := false     ; 输入条热键（Esc/历史/重发/方式切换）是否已注册
+barKeysRegistered  := false     ; 输入条按键（Esc/F9）是否已注册
 
-; 统一 Enter 处理（钩子通道，v1.10.1 起为“候补”角色）：
-;   系统热键常驻时（sysHkEnterReg=1），Enter 已被系统热键吞掉，由系统热键回调统一处理，
-;   本函数直接让位（否则双通道会同时动作：钩子弹输入条、系统热键再当“发送”销毁它）。
-;   系统热键未注册（注册失败等）时才由本函数按原逻辑兜底。
+; 钩子通道的 Enter 处理器：系统热键生效时让位，仅在其未注册时兜底工作
 EnterKeyHandler() {
-    global hookSawEnter := A_TickCount
     if A_TickCount < enterInjectUntil      ; 注入的 Enter（时间窗兜底）
         return
     if sysEnterSuppress                   ; 注入的 Enter：不消费标志（由系统热键回调消费），仅放行
@@ -736,31 +657,23 @@ ForceOpenInputBar() {
 }
 
 ; ============================================================================
-; 系统级热键通道（Win32 RegisterHotKey）—— HD2-CNChat 新增（原版 GRW-CNChat 无此机制）
-; 由 Windows 内核处理，不依赖 AHK 键盘钩子——AHK 钩子失效时的备用通道。
-;   Enter      ：启动时注册一次并常驻（v1.10 起）→ 回调内实时判断：
-;                 输入条可见→发送；游戏前台（实时查询）→ 打开输入条并补开游戏聊天；
-;                 其他场景→重新注入 Enter 放行（系统热键吞掉的原按键必须补还）
+; 系统级热键通道（Win32 RegisterHotKey，内核处理、不依赖 AHK 钩子）
+;   Enter      ：启动即常驻注册。RegisterHotKey 会无条件吞掉按键，所以本回调
+;                是 Enter 的唯一决策者：输入条可见→发送；游戏前台→打开输入条
+;                并补发 Enter 打开游戏聊天框；其他场景→暂停热键后重注入放行
 ;   Esc        ：输入条可见时注册 → 退出输入
-;   Ctrl+Enter ：游戏在前台时注册 → 强制打开输入条（备用）
-; 系统热键会拦截按键（游戏收不到），打开/发送流程与手动发送相同（注入文字+回车）。
-; 注意：v1.10 起 Enter 常驻注册不再依赖 RefreshGameState 的 250ms 轮询——
-; 之前“游戏前台→注册”的条件链任何一环失效（定时器死掉/状态冻结/判定错误）
-; 都会导致游戏内按 Enter 无任何反应（v1.8~v1.9 的实机故障）。
-; v1.10.1 要点：RegisterHotKey 会无条件吞掉按键（即使钩子通道 ~ 透传，游戏也收不到），
-; 所以本回调是 Enter 的“唯一决策者”：
-;   - 钩子通道（EnterKeyHandler）在 sysHkEnterReg=1 时让位，杜绝“钩子弹条、热键发送”双触发销毁
-;   - 每次吞掉的 Enter 要么被使用（发送/打开），要么重新注入放行，绝不静默丢弃
-;   - 打开输入条时必须给游戏补发 Enter 打开聊天框（游戏聊天框是发送文本的落点）
+;   Ctrl+Enter ：游戏前台时注册 → 强制打开输入条
+; 注：钩子通道（EnterKeyHandler）在系统热键生效时让位；任何注入的 Enter
+;     都必须先暂停本热键再恢复，否则会被自己吞掉
 ; ============================================================================
-sysHkEnterReg := false      ; Enter 系统热键是否已注册（v1.10 起：常驻，仅 SysOpenBar 短暂暂停）
+sysHkEnterReg := false      ; Enter 系统热键是否已注册（常驻，输入条可见时暂停）
 sysHkEscReg  := false       ; Esc 系统热键是否已注册
 sysHkCEnterReg := false     ; Ctrl+Enter 系统热键是否已注册
 
 OnMessage(0x0312, OnSysHotkey)          ; WM_HOTKEY
 OnSysHotkey(wParam, lParam, msg, hwnd) {
     try {
-        if wParam = 0x4844 {                ; 'HD' Enter（常驻，唯一决策者）
+        if wParam = 0x4844 {                ; 'HD' Enter（常驻）
             if A_TickCount < enterInjectUntil {
                 DebugLog("抑制注入 Enter（时间窗）")
                 return
@@ -778,15 +691,13 @@ OnSysHotkey(wParam, lParam, msg, hwnd) {
                 SysOpenBar()                ; 打开输入条 + 给游戏补发 Enter 打开聊天框
                 return
             }
-            ; 非游戏场景：系统热键已吞掉原按键，重新注入 Enter 放行（必须补还，不能静默丢弃）
-            ; 注意：必须先暂停热键再注入——否则注入的 Enter 又被自己的热键吞掉，
-            ; 前台窗口永远收不到（v1.10.2 实机确认：桌面 Enter 会被静默吃掉）
+            ; 桌面等非游戏场景：暂停热键后重注入 Enter 放行（不能静默丢弃）
             if sysHkEnterReg {
                 DllCall("UnregisterHotKey", "Ptr", A_ScriptHwnd, "Int", 0x4844)
                 global sysHkEnterReg := false
             }
-            global sysEnterSuppress := true      ; 钩子通道对注入的 Enter 直接放行
-            global enterInjectUntil := A_TickCount + 1200   ; 时间窗兜底
+            global sysEnterSuppress := true      ; 注入的 Enter 由回调消费
+            global enterInjectUntil := A_TickCount + 1200   ; 时间窗兜底（注入事件可能延迟派发）
             SendVKey(0x0D)
             Sleep 30
             global sysEnterSuppress := false
@@ -821,10 +732,8 @@ RegisterSysEnter() {
     DebugLog("系统热键注册 Enter(常驻) 最终失败 err=" A_LastError)
     return false
 }
-; 系统热键通道打开输入条（Enter 的“打开”分支）：
-; 游戏的原 Enter 已被系统热键吞掉，游戏收不到 → 聊天框不会开。
-; 必须：暂停热键 → 注入 Enter 给游戏打开聊天框 → 显示输入条 → 恢复热键。
-; （v1.10.1：不再判断钩子是否透传——RegisterHotKey 吞键与钩子无关，一律补发）
+; 系统热键通道“打开”分支：游戏的原 Enter 被系统热键吞掉、收不到，
+; 需暂停热键 → 给游戏注入 Enter 打开聊天框 → 显示输入条（恢复由 UpdateSysHotkeys 按状态处理）
 SysOpenBar() {
     if barVisible || IsOwnWindowActive()
         return
@@ -906,10 +815,7 @@ UnregisterAllSysHotkeys() {
         global sysHkCEnterReg := false
     }
 }
-; 更新输入条热键：输入条显示时注册，隐藏时注销
-; v1.10.5：↑/↓ 历史切换与 Ctrl+Y 重发已按用户要求屏蔽，仅保留 Esc/F9
-; 注意：本机 AHK v2.0.26 环境下 Hotkey 只接受 lambda/BoundFunc 回调
-; （直接传函数对象会报 Invalid callback function），统一用 lambda 包装
+; 输入条按键：显示时注册、隐藏时注销（本机 Hotkey 只接受 lambda 回调）
 UpdateBarHotkeys() {
     if barVisible && !barKeysRegistered {
         try {
@@ -945,9 +851,9 @@ UnregisterAllHotkeys() {
 }
 
 ; ============================================================================
-; 游戏监测 —— HD2-CNChat 新增（常驻状态刷新 + 系统热键维护，原版为单定时器监测）
+; 监听与状态
 ; ============================================================================
-; 注册“开始输入键”热键（非 Enter 时动态注册；lambda 包装，见 UpdateBarHotkeys 注释）
+; 注册“开始输入键”（非 Enter 时）
 RegisterChatKey() {
     if chatKeyRegistered
         Hotkey("~*" chatKeyRegistered, "Off")
@@ -992,9 +898,8 @@ Disarm() {
     DebugLog("Disarm 完成 armed=" armed)
     UpdateTrayTip()
 }
-; 常驻状态刷新（不依赖监听开关，启动即运行）：
-; 更新游戏存在/前台状态，并维护系统热键注册（Enter 常驻，此处只维护 Esc/Ctrl+Enter）
-; 整体异常保护：任何异常只记录日志，绝不让循环停摆
+; 常驻状态刷新（启动即运行）：刷新游戏状态缓存、维护系统热键注册
+; 整体 try-catch：任何异常只记录日志，不让定时器停摆
 RefreshGameState() {
     try {
         newExists := GameExists()
@@ -1011,26 +916,24 @@ RefreshGameState() {
         DebugLog("RefreshGameState 异常：" e.Message " @ " e.Line)
     }
 }
-; 诊断：游戏存在但不在前台时，周期性记录前台窗口信息（定位“游戏在前台却检测不到”）
+; 诊断：游戏在后台时周期性记录前台窗口信息
 DiagGameBackground() {
     static n := 0
     if gameExistsNow && !gameActiveNow {
         n++
-        if Mod(n, 8) = 0        ; 每 8 次（约 2 秒）记一次
+        if Mod(n, 8) = 0        ; 每 8 次（约 2 秒）
             DebugLog("游戏在后台(存在但未激活) " DiagForeground())
     } else {
         n := 0
     }
 }
-; 监测定时器：跟随窗口、更新面板（仅监听时）
+; 监听定时器：窗口跟随 + 面板刷新（仅监听时）
 MonitorGame() {
     if !armed {
         SetTimer(, 0)
         return
     }
     try {
-        ; 监听期间同时刷新游戏状态缓存（即使 RefreshGameState 链路异常，
-        ; 面板显示与窗口跟随也不会用过期数据——v1.10.6 修复“状态显示与实际不符”）
         global gameExistsNow := GameExists()
         global gameActiveNow := GameActive()
         MonitorGameInner()
@@ -1099,9 +1002,7 @@ MonitorGameInner() {
             ToolTip(,,, 2)
     }
 }
-; 更新主面板状态显示
-; v1.10.6：实时查询游戏窗口，不依赖轮询缓存（修复“游戏在运行却显示未检测到 /
-; 游戏已退出仍显示已监听”的过期状态问题）
+; 面板状态：实时查询游戏窗口（不依赖轮询缓存）
 UpdatePanelStatus() {
     if !IsSet(statusText)
         return
@@ -1129,7 +1030,7 @@ UpdateTrayTip() {
 }
 
 ; ============================================================================
-; 发送历史 —— HD2-CNChat 新增（原版无此功能）
+; 发送历史（INI 存储，最多 cfgMaxHistory 条）
 ; ============================================================================
 GetHistory() {
     arr := []
@@ -1159,7 +1060,7 @@ ClearHistory() {
 }
 
 ; ============================================================================
-; 主面板 —— HD2-CNChat 重写（原版为多游戏列表式界面，本版简化为单游戏助手面板）
+; 主面板
 ; ============================================================================
 BuildPanel() {
     W := 330
@@ -1527,10 +1428,9 @@ try {
 } catch as e {
     DebugLog("Enter 热键全局注册失败：" e.Message)
 }
-; Enter 系统热键常驻注册（Windows 内核处理，不依赖 AHK 钩子与状态轮询；
-; v1.10：启动即注册，非游戏场景由回调重新注入 Enter 放行）
+; Enter 系统热键常驻注册（输入条可见时由 UpdateSysHotkeys 暂停）
 RegisterSysEnter()
-; 常驻状态刷新（系统热键通道：Windows 内核处理，不依赖 AHK 钩子）
+; 常驻状态刷新
 SetTimer(RefreshGameState, 250)
 SetTimer(RefreshGameState, -10)
 if cfgCheckAdmin && !A_IsAdmin {
@@ -1690,8 +1590,8 @@ Selftest() {
         Log("syshk-active GameActive=" GameActive())
         Sleep 300
         if !sysHkEnterReg
-            RegisterSysEnter()      ; v1.10：Enter 系统热键常驻注册（启动流程不经过 selftest）
-        RefreshGameState()          ; 常驻状态刷新：目标激活 → 注册系统热键
+            RegisterSysEnter()
+        RefreshGameState()          ; 目标激活 → 注册系统热键
         Sleep 300
         Log("syshk enterReg=" sysHkEnterReg " ctrlEnterReg=" sysHkCEnterReg)
         ; 注入前再确认前台（外部程序可能刚抢走焦点），被抢则重激活
